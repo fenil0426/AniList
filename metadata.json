@@ -1,0 +1,6 @@
+{
+  "name": "AniHub - Anime Watchlist & Seasonal Tracker",
+  "description": "Track your anime watchlist, browse current seasonal airing countdowns, discover trending shows, and explore characters powered by AniList.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
