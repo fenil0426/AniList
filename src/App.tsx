@@ -19,15 +19,13 @@ import { SeasonView } from './components/SeasonView';
 import { SearchView } from './components/SearchView';
 import { CharactersView } from './components/CharactersView';
 import { MediaModal } from './components/MediaModal';
+import { AuthModal } from './components/AuthModal';
 import { ToastContainer, ToastMessage } from './components/Toast';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import {
   auth,
-  signInWithGoogle,
   signOutUser,
-  syncUserDataToFirestore,
-  fetchUserDataFromFirestore,
-  subscribeToUserData,
+  getFriendlyAuthErrorMessage,
 } from './services/firebase';
 
 export default function App() {
@@ -38,7 +36,11 @@ export default function App() {
   );
   const [theme, setTheme] = useState<'dark' | 'light'>(() => getSavedTheme());
   const [user, setUser] = useState<User | null>(null);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'offline'>('synced');
+
+  // Email verification and Auth modal states
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register' | 'verify'>('login');
+  const [verifyModalEmail, setVerifyModalEmail] = useState('');
 
   const [selectedAnime, setSelectedAnime] = useState<AnimeMedia | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -71,77 +73,27 @@ export default function App() {
     return () => window.removeEventListener('hashchange', applyHash);
   }, []);
 
-  // Listen to Firebase Auth state & load user data
+  // Listen to Firebase Auth state — enforce email verification & block access if unverified
   useEffect(() => {
-    let unsubscribeSnapshot: (() => void) | null = null;
-
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-        unsubscribeSnapshot = null;
-      }
-
       if (currentUser) {
-        setSyncStatus('syncing');
-        try {
-          const cloudData = await fetchUserDataFromFirestore(currentUser.uid);
-          if (cloudData) {
-            // Merge cloud and current local watchlist (newest updatedAt wins)
-            const currentLocal = getSavedWatchlist();
-            const mergedWatchlist = { ...currentLocal };
-            if (cloudData.watchlist) {
-              for (const [id, item] of Object.entries(cloudData.watchlist)) {
-                const numId = Number(id);
-                if (!mergedWatchlist[numId] || (item.updatedAt || 0) > (mergedWatchlist[numId]?.updatedAt || 0)) {
-                  mergedWatchlist[numId] = item;
-                }
-              }
-            }
-            const mergedFavs = { ...getSavedFavCharacters(), ...(cloudData.favCharacters || {}) };
-
-            setWatchlist(mergedWatchlist);
-            saveWatchlist(mergedWatchlist);
-            setFavCharacters(mergedFavs);
-            saveFavCharacters(mergedFavs);
-
-            await syncUserDataToFirestore(currentUser.uid, mergedWatchlist, mergedFavs);
-          } else {
-            await syncUserDataToFirestore(currentUser.uid, watchlist, favCharacters);
-          }
-          setSyncStatus('synced');
-
-          // Subscribe for real-time sync across devices
-          unsubscribeSnapshot = subscribeToUserData(currentUser.uid, (data) => {
-            if (data.watchlist) {
-              setWatchlist((prev) => {
-                const updated = { ...prev, ...data.watchlist };
-                saveWatchlist(updated);
-                return updated;
-              });
-            }
-            if (data.favCharacters) {
-              setFavCharacters((prev) => {
-                const updated = { ...prev, ...data.favCharacters };
-                saveFavCharacters(updated);
-                return updated;
-              });
-            }
-            setSyncStatus('synced');
-          });
-        } catch (err) {
-          console.error(err);
-          setSyncStatus('error');
+        // If email is not verified, block access and show verification screen
+        if (!currentUser.emailVerified) {
+          const unverified = currentUser.email || '';
+          await signOutUser();
+          setUser(null);
+          setVerifyModalEmail(unverified);
+          setAuthModalMode('verify');
+          setIsAuthModalOpen(true);
+          return;
         }
+        setUser(currentUser);
       } else {
-        setSyncStatus('synced');
+        setUser(null);
       }
     });
 
-    return () => {
-      unsubscribeAuth();
-      if (unsubscribeSnapshot) unsubscribeSnapshot();
-    };
+    return () => unsubscribeAuth();
   }, []);
 
   // Keyboard shortcut '/' to search
@@ -159,53 +111,30 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Save watchlist on change & sync to cloud
+  // Save watchlist on change (local storage only, zero database)
   const updateWatchlist = useCallback((newList: Record<number, WatchlistItem>) => {
     setWatchlist(newList);
     saveWatchlist(newList);
-    if (user) {
-      setSyncStatus('syncing');
-      syncUserDataToFirestore(user.uid, newList, favCharacters)
-        .then(() => setSyncStatus('synced'))
-        .catch(() => setSyncStatus('error'));
-    }
-  }, [user, favCharacters]);
+  }, []);
 
-  // Save fav characters on change & sync to cloud
+  // Save fav characters on change (local storage only, zero database)
   const updateFavCharacters = useCallback((newFavs: Record<number, FavCharacter>) => {
     setFavCharacters(newFavs);
     saveFavCharacters(newFavs);
-    if (user) {
-      setSyncStatus('syncing');
-      syncUserDataToFirestore(user.uid, watchlist, newFavs)
-        .then(() => setSyncStatus('synced'))
-        .catch(() => setSyncStatus('error'));
-    }
-  }, [user, watchlist]);
+  }, []);
 
-  // Handle Google Sign In
-  const handleSignIn = async () => {
-    try {
-      setSyncStatus('syncing');
-      const loggedUser = await signInWithGoogle();
-      if (loggedUser) {
-        addToast(`Signed in as ${loggedUser.displayName || loggedUser.email}! ☁`);
-      }
-    } catch (err: any) {
-      setSyncStatus('error');
-      if (err?.code === 'auth/unauthorized-domain') {
-        addToast('This domain needs to be authorized in Firebase Auth (see console).', 'error');
-      } else {
-        addToast(err?.message || 'Sign in failed. Please try again.', 'error');
-      }
-    }
+  // Handle open auth modal
+  const handleOpenAuth = () => {
+    setAuthModalMode('login');
+    setIsAuthModalOpen(true);
   };
 
   // Handle Sign Out
   const handleSignOut = async () => {
     try {
       await signOutUser();
-      addToast('Signed out of Google account.', 'info');
+      setUser(null);
+      addToast('Signed out successfully.', 'info');
     } catch {
       addToast('Sign-out failed.', 'error');
     }
@@ -480,9 +409,8 @@ export default function App() {
         theme={theme}
         onToggleTheme={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
         user={user}
-        onSignIn={handleSignIn}
+        onSignIn={handleOpenAuth}
         onSignOut={handleSignOut}
-        syncStatus={syncStatus}
       />
 
       {/* Main Content Area */}
@@ -503,7 +431,8 @@ export default function App() {
             onNavigateToSeason={() => changeTab('season')}
             onLoadStarters={handleLoadStarters}
             user={user}
-            onSignIn={handleSignIn}
+            onSignIn={handleOpenAuth}
+            onSignOut={handleSignOut}
           />
         )}
 
@@ -540,9 +469,9 @@ export default function App() {
             <span>· Anime watchlist, seasonal countdowns, and character discovery</span>
           </div>
           <div className="flex items-center gap-4">
-            <span>Real-time catalog sync</span>
+            <span>Verified Authentication</span>
             <span>·</span>
-            <span>Auto-saved to device</span>
+            <span>Private library storage</span>
           </div>
         </div>
       </footer>
@@ -566,6 +495,17 @@ export default function App() {
           changeTab('characters');
           setIsModalOpen(false);
         }}
+      />
+
+      {/* Email Verification & Authentication Modal */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={(email) => {
+          addToast(`Signed in as ${email}! 🌸`);
+        }}
+        initialMode={authModalMode}
+        initialVerifyEmail={verifyModalEmail}
       />
 
       {/* Floating Toasts */}

@@ -19,6 +19,8 @@ import {
   BookOpen,
   MessageSquare,
   Cloud,
+  LogOut,
+  CheckCircle,
 } from 'lucide-react';
 
 import { User } from 'firebase/auth';
@@ -45,6 +47,7 @@ interface MyListViewProps {
   onLoadStarters?: () => void;
   user?: User | null;
   onSignIn?: () => void;
+  onSignOut?: () => void;
 }
 
 export const MyListView: React.FC<MyListViewProps> = ({
@@ -60,6 +63,7 @@ export const MyListView: React.FC<MyListViewProps> = ({
   onLoadStarters,
   user,
   onSignIn,
+  onSignOut,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<'all' | WatchStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -184,11 +188,21 @@ export const MyListView: React.FC<MyListViewProps> = ({
       {user ? (
         <div className="p-3.5 px-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5 text-emerald-300">
-            <Cloud className="w-4 h-4 shrink-0 text-emerald-400" />
+            <CheckCircle className="w-4 h-4 shrink-0 text-emerald-400" />
             <span>
-              Connected to <b>{user.displayName || user.email}</b> &mdash; your watchlist, ratings, and thoughts are synced across your devices with Google Cloud.
+              Signed in as <b>{user.displayName || user.email}</b> &mdash; Verified Account
             </span>
           </div>
+          {onSignOut && (
+            <button
+              onClick={onSignOut}
+              className="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Log out of this account"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Log Out</span>
+            </button>
+          )}
         </div>
       ) : (
         <div className="p-3.5 px-4 rounded-2xl bg-gradient-to-r from-pink-500/15 via-purple-500/15 to-indigo-500/15 border border-pink-500/30 flex flex-wrap items-center justify-between gap-3 text-xs">

@@ -9,10 +9,9 @@ import {
   Sun,
   Moon,
   LogOut,
-  Cloud,
-  CloudCheck,
-  RefreshCw,
-  AlertTriangle,
+  LogIn,
+  CheckCircle,
+  X,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -48,19 +47,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   syncStatus = 'synced',
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileAccountOpen, setMobileAccountOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu on click outside
+  // Close desktop dropdown on click outside
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
       }
     };
     if (menuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, [menuOpen]);
 
   const userInitial = (user?.displayName || user?.email || '?').charAt(0).toUpperCase();
@@ -184,7 +188,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {user ? (
               <div>
                 <button
-                  onClick={() => setMenuOpen(!menuOpen)}
+                  onClick={() => {
+                    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                      setMobileAccountOpen(true);
+                    } else {
+                      setMenuOpen(!menuOpen);
+                    }
+                  }}
                   className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-xl bg-[#181527] light:bg-slate-100 border border-[#2e2946] light:border-slate-300 hover:border-[#ff6b9d]/60 cursor-pointer transition-all"
                   aria-label="User Account"
                 >
@@ -217,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </span>
                 </button>
 
-                {/* Account Menu Popup */}
+                {/* Account Menu Popup (Desktop) */}
                 {menuOpen && (
                   <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#181527] light:bg-white border border-[#2e2946] light:border-slate-200 shadow-2xl p-3 z-50 flex flex-col gap-2.5 animate-fade-in">
                     <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#2e2946]/60 light:border-slate-100">
@@ -243,24 +253,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                     </div>
 
-                    {/* Sync Status Banner */}
-                    <div className="p-2 rounded-xl bg-[#221e35]/60 light:bg-slate-50 border border-[#2e2946]/50 flex items-center gap-2 text-xs">
-                      {syncStatus === 'syncing' ? (
-                        <>
-                          <RefreshCw className="w-3.5 h-3.5 text-amber-400 animate-spin shrink-0" />
-                          <span className="text-amber-300 font-medium">Syncing with cloud...</span>
-                        </>
-                      ) : syncStatus === 'error' ? (
-                        <>
-                          <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                          <span className="text-rose-300 font-medium">Sync retry scheduled</span>
-                        </>
-                      ) : (
-                        <>
-                          <Cloud className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                          <span className="text-emerald-400 font-medium">Synced to Google Account</span>
-                        </>
-                      )}
+                    {/* Verification Status Banner */}
+                    <div className="p-2 rounded-xl bg-emerald-500/10 light:bg-emerald-50 border border-emerald-500/20 flex items-center gap-2 text-xs">
+                      <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="text-emerald-400 font-medium">Verified Account</span>
                     </div>
 
                     <button
@@ -279,14 +275,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             ) : (
               <button
                 onClick={onSignIn}
-                className="h-9 px-3 rounded-xl bg-[#181527] light:bg-slate-100 hover:bg-[#221e35] light:hover:bg-slate-200 border border-[#2e2946] light:border-slate-300 hover:border-[#ff6b9d]/60 text-slate-200 light:text-slate-800 font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all shadow-sm group"
-                title="Sign in with Google to sync your watchlist across devices"
+                className="h-9 px-3.5 rounded-xl bg-[#181527] light:bg-slate-100 hover:bg-[#221e35] light:hover:bg-slate-200 border border-[#2e2946] light:border-slate-300 hover:border-[#ff6b9d]/60 text-slate-200 light:text-slate-800 font-semibold text-xs flex items-center gap-2 cursor-pointer transition-all shadow-sm group"
+                title="Sign in with your verified account"
               >
-                <div className="w-4 h-4 rounded-md bg-white/10 light:bg-white flex items-center justify-center p-0.5 group-hover:scale-110 transition-transform shrink-0">
-                  <GoogleIcon />
-                </div>
-                <span className="hidden sm:inline font-bold">Sign in with Google</span>
-                <span className="sm:hidden font-bold">Sign in</span>
+                <LogIn className="w-3.5 h-3.5 text-[#ff6b9d] group-hover:scale-110 transition-transform" />
+                <span className="font-bold">Sign In</span>
               </button>
             )}
           </div>
@@ -294,10 +287,10 @@ export const Navbar: React.FC<NavbarProps> = ({
       </div>
 
       {/* Mobile Bottom Navigation Bar */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#141124]/95 backdrop-blur-xl border-t border-[#2e2946] px-2 py-1.5 flex items-center justify-around safe-bottom">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#141124]/95 backdrop-blur-xl border-t border-[#2e2946] px-1 py-1.5 flex items-center justify-around safe-bottom">
         <button
           onClick={() => onTabChange('list')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-xs font-semibold cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-xs font-semibold cursor-pointer ${
             currentTab === 'list'
               ? 'text-[#ff6b9d]'
               : 'text-slate-400 hover:text-slate-200'
@@ -316,7 +309,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => onTabChange('season')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-xs font-semibold cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-xs font-semibold cursor-pointer ${
             currentTab === 'season'
               ? 'text-[#ff6b9d]'
               : 'text-slate-400 hover:text-slate-200'
@@ -328,7 +321,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => onTabChange('search')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-xs font-semibold cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-xs font-semibold cursor-pointer ${
             currentTab === 'search'
               ? 'text-[#ff6b9d]'
               : 'text-slate-400 hover:text-slate-200'
@@ -340,7 +333,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
         <button
           onClick={() => onTabChange('characters')}
-          className={`flex flex-col items-center gap-1 py-1 px-3 rounded-xl text-xs font-semibold cursor-pointer ${
+          className={`flex flex-col items-center gap-1 py-1 px-2.5 rounded-xl text-xs font-semibold cursor-pointer ${
             currentTab === 'characters'
               ? 'text-[#ff6b9d]'
               : 'text-slate-400 hover:text-slate-200'
@@ -349,7 +342,153 @@ export const Navbar: React.FC<NavbarProps> = ({
           <Sparkles className="w-5 h-5" />
           <span>Characters</span>
         </button>
+
+        {/* Mobile Account & Log Out button */}
+        {user ? (
+          <button
+            onClick={() => setMobileAccountOpen(true)}
+            className="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-xs font-semibold cursor-pointer text-slate-400 hover:text-white transition-colors"
+            title="Account & Log Out"
+          >
+            <div className="relative w-5 h-5 rounded-full overflow-hidden bg-gradient-to-tr from-[#e0457b] to-[#8b5cf6] flex items-center justify-center text-white text-[10px] font-bold">
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt=""
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{userInitial}</span>
+              )}
+              <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-emerald-400 rounded-full ring-1 ring-[#141124]" />
+            </div>
+            <span>Account</span>
+          </button>
+        ) : (
+          <button
+            onClick={onSignIn}
+            className="flex flex-col items-center gap-1 py-1 px-2 rounded-xl text-xs font-semibold cursor-pointer text-slate-400 hover:text-[#ff6b9d] transition-colors"
+            title="Sign In"
+          >
+            <LogIn className="w-5 h-5 text-[#ff6b9d]" />
+            <span>Sign In</span>
+          </button>
+        )}
       </div>
+
+      {/* Mobile Account Bottom Sheet / Modal */}
+      {mobileAccountOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex flex-col justify-end">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileAccountOpen(false)}
+          />
+
+          {/* Drawer Content */}
+          <div className="relative bg-[#181527] light:bg-white border-t border-[#2e2946] light:border-slate-200 rounded-t-3xl p-5 shadow-2xl z-10 space-y-4 max-h-[85vh] overflow-y-auto pb-10">
+            {/* Grab handle indicator */}
+            <div className="w-12 h-1 bg-[#2e2946] light:bg-slate-300 rounded-full mx-auto -mt-1 mb-2" />
+
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold text-white light:text-slate-900">
+                My Account
+              </h3>
+              <button
+                onClick={() => setMobileAccountOpen(false)}
+                className="w-8 h-8 rounded-full bg-[#221e35] light:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-white light:hover:text-slate-900 cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {user ? (
+              <div className="space-y-4">
+                {/* User Info Card */}
+                <div className="p-3.5 rounded-2xl bg-[#141124] light:bg-slate-50 border border-[#2e2946] light:border-slate-200 flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gradient-to-tr from-[#e0457b] via-[#ff6b9d] to-[#8b5cf6] flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-lg shadow-pink-500/20">
+                    {user.photoURL ? (
+                      <img
+                        src={user.photoURL}
+                        alt=""
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{userInitial}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-bold text-white light:text-slate-900 truncate">
+                      {user.displayName || 'Anime Fan'}
+                    </div>
+                    <div className="text-xs text-slate-400 light:text-slate-600 truncate mt-0.5">
+                      {user.email}
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] font-semibold mt-2">
+                      <CheckCircle className="w-3 h-3" />
+                      <span>Verified Account</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Theme Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-2xl bg-[#141124] light:bg-slate-50 border border-[#2e2946] light:border-slate-200">
+                  <span className="text-xs font-semibold text-slate-300 light:text-slate-700">
+                    Theme
+                  </span>
+                  <button
+                    onClick={onToggleTheme}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#221e35] light:bg-slate-200 text-xs font-semibold text-slate-200 light:text-slate-800 cursor-pointer"
+                  >
+                    {theme === 'dark' ? (
+                      <>
+                        <Sun className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Light Mode</span>
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Dark Mode</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* Prominent Log Out Button */}
+                <button
+                  onClick={() => {
+                    setMobileAccountOpen(false);
+                    onSignOut();
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-rose-500/15 hover:bg-rose-500/25 active:bg-rose-500/30 border border-rose-500/30 text-rose-300 font-bold text-sm flex items-center justify-center gap-2 cursor-pointer transition-all shadow-sm"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Log Out</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-slate-400 light:text-slate-600">
+                  Sign in with your verified email account to keep your anime watchlist and favorite characters synced.
+                </p>
+                <button
+                  onClick={() => {
+                    setMobileAccountOpen(false);
+                    onSignIn();
+                  }}
+                  className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-[#e0457b] to-[#ff6b9d] text-white font-bold text-sm flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-pink-500/25"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </header>
   );
 };
